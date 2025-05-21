@@ -9,5 +9,6 @@
   },
   "dependencies": {
     "node-fetch": "^2.6.7"
+    "sass":       "^1.62.1"
   }
 }
