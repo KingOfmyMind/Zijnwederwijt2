@@ -130,6 +130,15 @@
       updateTrackers();
       setInterval(updateTrackers, config.refreshInterval);
     });
+
+    // In main.js of <script> in index.html
+async function updateTrackers() {
+  try {
+    const res = await fetch('/functions/get-positions');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    // … rest unchanged …
+
   </script>
 </body>
 </html>
