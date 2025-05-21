@@ -2,154 +2,134 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Test GPX + Map</title>
-  <link 
-    rel="stylesheet" 
-    href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Live Route + Trackers</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <style>
     body, html { margin:0; padding:0; height:100%; }
-    #map { width:100%; height:100%; }
+    #map { width:100%; height:80%; }
+    #trackerList { list-style: none; padding:10px; max-height:20%; overflow-y:auto; background:#f4f4f4; }
+    .progress-bar { width:100%; background:#ddd; border-radius:5px; overflow:hidden; margin-top:5px }
+    .progress-bar-inner { height:8px; background:#4caf50 }
   </style>
 </head>
 <body>
 
-<div id="map"></div>
+  <div id="map"></div>
+  <!-- Hier komt de lijst met trackers -->
+  <ul id="trackerList"></ul>
 
-<!-- Leaflet + GPX plugin -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet-gpx@1.4.0/gpx.min.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-gpx@1.4.0/gpx.min.js"></script>
+  <script>
+    // ─── MAP & GPX SETUP ───────────────────────────────────────────────────────
+    const map = L.map('map').setView([50.85,4.35],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-<script>
-  // 1) Maak de kaart en voeg de tiles toe
-  const map = L.map('map').setView([50.85,4.35], 13);
-  L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', 
-    { maxZoom: 19 }
-  ).addTo(map);
+    let routeCoords = [];
+    let totalRouteDistance = 0;
 
-  // 2) Laad je standaard GPX (in dezelfde map als deze HTML)
-  const defaultGpx = 'mijnroute.gpx';  // **Zorg dat dit bestand bestaat**
+    // Laad standaard GPX
+    new L.GPX('mijnroute.gpx', { async: true })
+      .on('loaded', e => {
+        map.fitBounds(e.target.getBounds());
+        routeCoords = e.target.getLayers()[0].getLatLngs().flat();
+        totalRouteDistance = routeCoords.reduce((sum, pt, i) => {
+          if (i === 0) return 0;
+          return sum + haversine(routeCoords[i-1], pt);
+        }, 0);
+      })
+      .on('error', err => console.error('GPX load error:', err))
+      .addTo(map);
 
-  new L.GPX(defaultGpx, {async: true})
-    .on('loaded', e => {
-      // wanneer geladen, zoom naar de route
-      map.fitBounds(e.target.getBounds());
-    })
-    .on('error', err => {
-      console.error('Kon GPX niet laden:', err);
-    })
-    .addTo(map);
+    // ─── TRACCAR CONFIGURATIE ─────────────────────────────────────────────────
+    const config = {
+      trackerApiUrl:    'https://demo.traccar.org/api/positions',
+      trackerDeviceIds: [7198],
+      username:         'kevin.sneyders@gmail.com',
+      password:         'K3v1nSn34d3rs',
+      refreshInterval:  10000
+    };
 
-  // ─── TRACCAR CONFIGURATIE ─────────────────────────────────────────────────
-const config = {
-  trackerApiUrl:    'https://demo.traccar.org/api/positions',
-  trackerDeviceIds: [7198],        // jouw deviceId(s)
-  username:         'kevin.sneyders@gmail.com',        // je Traccar gebruikersnaam
-  password:         'K3v1nSn34d3rs',        // je Traccar wachtwoord
-  refreshInterval:  10000          // update elke 10s
-};
+    // ─── HULPFUNCTIES ────────────────────────────────────────────────────────────
+    function haversine(a, b) {
+      const R = 6371000, toRad = d => d * Math.PI/180;
+      const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lng - a.lng);
+      const A = Math.sin(dLat/2)**2 +
+                Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) *
+                Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(A), Math.sqrt(1-A));
+    }
 
-// ─── HULPFUNCTIES ────────────────────────────────────────────────────────────
-// Haversine‐formule voor afstand tussen twee punten (in meters)
-function haversine(a, b) {
-  const R = 6371000;
-  const toRad = d => d * Math.PI/180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lng - a.lng);
-  const A = Math.sin(dLat/2)**2 +
-            Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) *
-            Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(A), Math.sqrt(1-A));
-}
-
-// Bereken resterende afstand t.o.v. de ingeladen GPX-route
-function calculateRemainingDistance(pos) {
-  if (!routeCoords || !routeCoords.length) return null;
-  let closestIdx = 0, minDist = Infinity;
-  routeCoords.forEach((pt,i) => {
-    const d = haversine(pos, pt);
-    if (d < minDist) { minDist = d; closestIdx = i; }
-  });
-  // som vanaf dichtstbijzijnde punt naar het einde
-  let rem = 0;
-  for (let i = closestIdx; i < routeCoords.length - 1; i++) {
-    rem += haversine(routeCoords[i], routeCoords[i+1]);
-  }
-  return {
-    remainingKm: rem/1000,
-    progressPct: totalRouteDistance
-      ? 100 - (rem/totalRouteDistance)*100
-      : null
-  };
-}
-
-// ─── TRACKER LOGICA ─────────────────────────────────────────────────────────
-const trackerMarkers = {};  // cache van deviceId → Leaflet marker
-
-async function updateTrackers() {
-  try {
-    const res = await fetch(config.trackerApiUrl, {
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${config.username}:${config.password}`)
+    function calculateRemainingDistance(pos) {
+      if (!routeCoords.length) return null;
+      let idx = 0, minDist = Infinity;
+      routeCoords.forEach((pt,i) => {
+        const d = haversine(pos, pt);
+        if (d < minDist) { minDist = d; idx = i; }
+      });
+      let rem = 0;
+      for (let i = idx; i < routeCoords.length-1; i++) {
+        rem += haversine(routeCoords[i], routeCoords[i+1]);
       }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const list = document.getElementById('trackerList');
-    list.innerHTML = '';
+      return {
+        remainingKm: rem/1000,
+        progressPct: totalRouteDistance ? 100 - (rem/totalRouteDistance)*100 : 0
+      };
+    }
 
-    config.trackerDeviceIds.forEach(id => {
-      const device = data.find(d => d.deviceId === id);
-      if (!device) return;
+    // ─── TRACKER LOGICA ─────────────────────────────────────────────────────────
+    const trackerMarkers = {};
 
-      const { latitude, longitude, fixTime } = device;
-      const latlng = { lat: latitude, lng: longitude };
+    async function updateTrackers() {
+      try {
+        const res = await fetch(config.trackerApiUrl, {
+          headers: { 'Authorization': 'Basic ' + btoa(config.username+':'+config.password) }
+        });
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
 
-      // maak of verplaats marker
-      if (!trackerMarkers[id]) {
-        trackerMarkers[id] = L.marker(latlng).addTo(map);
-      } else {
-        trackerMarkers[id].setLatLng(latlng);
+        const ul = document.getElementById('trackerList');
+        ul.innerHTML = '';
+
+        config.trackerDeviceIds.forEach(id => {
+          const d = data.find(x => x.deviceId === id);
+          if (!d) return;
+
+          const latlng = { lat: d.latitude, lng: d.longitude };
+          // Marker
+          if (!trackerMarkers[id]) trackerMarkers[id] = L.marker(latlng).addTo(map);
+          else trackerMarkers[id].setLatLng(latlng);
+
+          // Afstand + progress
+          const dist = calculateRemainingDistance(latlng);
+          const age = Math.floor((Date.now() - new Date(d.fixTime)) / 1000);
+
+          // List item
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <strong>Tracker ${id}</strong> (${age}s ago)<br>
+            (${d.latitude.toFixed(5)}, ${d.longitude.toFixed(5)})<br>
+            ${dist ? `
+              Nog ${dist.remainingKm.toFixed(2)} km<br>
+              <div class="progress-bar">
+                <div class="progress-bar-inner" style="width:${dist.progressPct.toFixed(1)}%"></div>
+              </div>` 
+            : 'GPX niet geladen'}
+          `;
+          ul.appendChild(li);
+        });
+
+      } catch (err) {
+        console.error('Tracker update mislukt:', err);
       }
+    }
 
-      // bereken afstand & voortgang
-      const dist = calculateRemainingDistance(latlng);
-      const age = Math.floor((Date.now() - new Date(fixTime)) / 1000);
-
-      // bouw list‐item
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <strong>Tracker ${id}</strong><br>
-        (${latitude.toFixed(5)}, ${longitude.toFixed(5)})<br>
-        Laatste update: ${age}s geleden<br>
-        ${dist
-          ? `Nog ${dist.remainingKm.toFixed(2)} km
-             <div class="progress-bar">
-               <div class="progress-bar-inner" style="width:${dist.progressPct.toFixed(1)}%"></div>
-             </div>`
-          : 'GPX niet geladen'}  
-      `;
-      list.appendChild(li);
+    // ─── STARTUP ────────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      updateTrackers();
+      setInterval(updateTrackers, config.refreshInterval);
     });
-
-  } catch (err) {
-    console.error('Tracker update mislukt:', err);
-  }
-}
-
-// ─── OPSTARTEN ──────────────────────────────────────────────────────────────
-// Na DOMContentLoaded (en nadat je GPX hebt geladen):
-window.addEventListener('DOMContentLoaded', () => {
-  // zorg dat routeCoords & totalRouteDistance al ingesteld zijn door GPX‐loader!
-  
-  // Eerste update
-  updateTrackers();
-  // Plan periodieke updates
-  setInterval(updateTrackers, config.refreshInterval);
-});
-
-</script>
-
+  </script>
 </body>
 </html>
