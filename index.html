@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Test GPX + Map</title>
+  <link 
+    rel="stylesheet" 
+    href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <style>
+    body, html { margin:0; padding:0; height:100%; }
+    #map { width:100%; height:100%; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Leaflet + GPX plugin -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-gpx@1.4.0/gpx.min.js"></script>
+
+<script>
+  // 1) Maak de kaart en voeg de tiles toe
+  const map = L.map('map').setView([50.85,4.35], 13);
+  L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', 
+    { maxZoom: 19 }
+  ).addTo(map);
+
+  // 2) Laad je standaard GPX (in dezelfde map als deze HTML)
+  const defaultGpx = 'mijnroute.gpx';  // **Zorg dat dit bestand bestaat**
+
+  new L.GPX(defaultGpx, {async: true})
+    .on('loaded', e => {
+      // wanneer geladen, zoom naar de route
+      map.fitBounds(e.target.getBounds());
+    })
+    .on('error', err => {
+      console.error('Kon GPX niet laden:', err);
+    })
+    .addTo(map);
+</script>
+
+</body>
+</html>
