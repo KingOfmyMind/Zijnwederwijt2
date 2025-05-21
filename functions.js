@@ -1,14 +1,15 @@
-// netlify/functions/get-positions.js
+// functions/get-positions.js
 const fetch = require('node-fetch');
 
-exports.handler = async function(event, context) {
+exports.handler = async (event, context) => {
+  // Haal je Traccar-inloggegevens uit env vars
   const user = process.env.TRACCAR_USER;
   const pass = process.env.TRACCAR_PASS;
   const auth = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
 
   try {
     const res = await fetch('https://demo.traccar.org/api/positions', {
-      headers: { 
+      headers: {
         'Authorization': auth,
         'Accept': 'application/json'
       }
