@@ -1,20 +1,16 @@
 {
   "name": "live-route-tracker",
   "version": "1.0.0",
-  "description": "Serverless functions & frontend voor Live Route + Trackers",
-  "main": "index.js",
+  "description": "Frontend en Netlify Functions voor Live Route + Trackers",
   "scripts": {
     "preinstall": "npm cache clean --force",
-    "build":     "echo \"Nothing to build\""
+    "build": "echo \"Nothing to build\""
   },
   "dependencies": {
-    "node-fetch": "^2.6.7"
-    "sass":       "^1.62.1"
-  }
-{
+    "node-fetch": "^2.6.7",
+    "sass": "^1.62.1"
+  },
   "engines": {
     "node": "18.x"
   }
-}  
-
 }
