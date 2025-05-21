@@ -1,0 +1,3 @@
+[build]
+  publish   = "."         # of "public" als je daar deployt
+  functions = "functions" # mapnaam waar je get-positions.js in staat
