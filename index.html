@@ -81,49 +81,60 @@
     // ─── TRACKER LOGICA ─────────────────────────────────────────────────────────
     const trackerMarkers = {};
 
-    async function updateTrackers() {
-      try {
-        const res = await fetch(config.trackerApiUrl, {
-          headers: { 'Authorization': 'Basic ' + btoa(config.username+':'+config.password) }
-        });
-        if (!res.ok) throw new Error(res.status);
-        const data = await res.json();
-
-        const ul = document.getElementById('trackerList');
-        ul.innerHTML = '';
-
-        config.trackerDeviceIds.forEach(id => {
-          const d = data.find(x => x.deviceId === id);
-          if (!d) return;
-
-          const latlng = { lat: d.latitude, lng: d.longitude };
-          // Marker
-          if (!trackerMarkers[id]) trackerMarkers[id] = L.marker(latlng).addTo(map);
-          else trackerMarkers[id].setLatLng(latlng);
-
-          // Afstand + progress
-          const dist = calculateRemainingDistance(latlng);
-          const age = Math.floor((Date.now() - new Date(d.fixTime)) / 1000);
-
-          // List item
-          const li = document.createElement('li');
-          li.innerHTML = `
-            <strong>Tracker ${id}</strong> (${age}s ago)<br>
-            (${d.latitude.toFixed(5)}, ${d.longitude.toFixed(5)})<br>
-            ${dist ? `
-              Nog ${dist.remainingKm.toFixed(2)} km<br>
-              <div class="progress-bar">
-                <div class="progress-bar-inner" style="width:${dist.progressPct.toFixed(1)}%"></div>
-              </div>` 
-            : 'GPX niet geladen'}
-          `;
-          ul.appendChild(li);
-        });
-
-      } catch (err) {
-        console.error('Tracker update mislukt:', err);
-      }
+   async function updateTrackers() {
+  try {
+    // Roep nu je eigen proxy aan in plaats van rechtstreeks Traccar
+    const res = await fetch('/.netlify/functions/get-positions');
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
+    const data = await res.json();
+
+    const list = document.getElementById('trackerList');
+    list.innerHTML = '';
+
+    config.trackerDeviceIds.forEach(id => {
+      const device = data.find(d => d.deviceId === id);
+      if (!device) return;
+
+      const { latitude, longitude, fixTime } = device;
+      const latlng = { lat: latitude, lng: longitude };
+
+      if (!trackerMarkers[id]) {
+        trackerMarkers[id] = L.marker(latlng).addTo(map);
+      } else {
+        trackerMarkers[id].setLatLng(latlng);
+      }
+
+      const distData = calculateRemainingDistance(latlng);
+      const age = Math.floor((Date.now() - new Date(fixTime)) / 1000);
+
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <strong>Tracker ${id}</strong><br>
+        (${latitude.toFixed(5)}, ${longitude.toFixed(5)})<br>
+        Laatste update: ${age}s geleden<br>
+        ${distData 
+          ? `Nog ${distData.remainingKm.toFixed(2)} km<br>
+             <div class="progress-bar">
+               <div class="progress-bar-inner" style="width:${distData.progressPct.toFixed(1)}%"></div>
+             </div>`
+          : 'GPX niet geladen'}
+      `;
+      list.appendChild(li);
+    });
+
+  } catch (err) {
+    console.error('Tracker update mislukt:', err);
+  }
+}
+
+// En opstarten:
+window.addEventListener('DOMContentLoaded', () => {
+  // Zorg dat je GPX al geladen is vóór trackers
+  updateTrackers();
+  setInterval(updateTrackers, config.refreshInterval);
+});
 
     // ─── STARTUP ────────────────────────────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
@@ -131,13 +142,7 @@
       setInterval(updateTrackers, config.refreshInterval);
     });
 
-    // In main.js of <script> in index.html
-async function updateTrackers() {
-  try {
-    const res = await fetch('/functions/get-positions');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    // … rest unchanged …
+
 
   </script>
 </body>
