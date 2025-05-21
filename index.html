@@ -84,7 +84,7 @@
    async function updateTrackers() {
   try {
     // Roep nu je eigen proxy aan in plaats van rechtstreeks Traccar
-    const res = await fetch('/.netlify/functions/get-positions');
+    const res = await fetch('/functions/get-positions');
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
