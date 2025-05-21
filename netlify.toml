@@ -4,3 +4,7 @@
   publish   = "."
   node_version = "18"
 
+  [build.environment]
+  NODE_VERSION = "18"
+
+
