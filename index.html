@@ -30,8 +30,24 @@
       .on('loaded', e => {
         map.fitBounds(e.target.getBounds());
         // vind de polyline layer
-        const track = e.target.getLayers().find(l=>typeof l.getLatLngs==='function');
-        const coords = (Array.isArray(track.getLatLngs()[0]) ? track.getLatLngs().flat() : track.getLatLngs());
+        const layers = e.target.getLayers();
+const track = layers.find(l => typeof l.getLatLngs === 'function');
+
+if (!track) {
+  console.warn('Geen GPX track gevonden met getLatLngs(). Beschikbare layers:', layers);
+  return;
+}
+
+let coords = track.getLatLngs();
+if (Array.isArray(coords[0])) {
+  coords = coords.flat();  // flatten als het meerdere segmenten zijn
+}
+
+routeCoords = coords;
+totalRouteDistance = coords.reduce((sum, pt, i) =>
+  i ? sum + haversine(coords[i - 1], pt) : 0
+, 0);
+
         routeCoords = coords;
         totalRouteDistance = coords.reduce((sum, pt, i) =>
           i ? sum + haversine(coords[i-1], pt) : 0
