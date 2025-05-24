@@ -102,11 +102,11 @@ async function updateTrackers() {
       const latlng = { lat: latitude, lng: longitude };
 
       // 3) Plaats of verplaats de marker
-      if (!trackerMarkers[id]) {
-        trackerMarkers[id] = L.marker(latlng).addTo(map);
-      } else {
-        trackerMarkers[id].setLatLng(latlng);
-      }
+ if (!trackerMarkers[id]) {
+  trackerMarkers[id] = L.marker(latlng).addTo(map);  // GEEN custom icon
+} else {
+  trackerMarkers[id].setLatLng(latlng);
+}
 
       // 4) Bereken afstand en voortgang
       const dist = calculateRemainingDistance(latlng);
