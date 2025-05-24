@@ -35,13 +35,7 @@
         const layers = e.target.getLayers();
         const track = layers.find(function(l) {
           return typeof l.getLatLngs === 'function';
-        })
-          marker_options: {
-  startIconUrl: null,
-  endIconUrl: null,
-  shadowUrl: null
-}
-;
+        });
 
         if (!track) {
           console.warn('Geen GPX track gevonden met getLatLngs(). Beschikbare layers:', layers);
