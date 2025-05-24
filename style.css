@@ -1,0 +1,48 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#map {
+  height: 90vh;
+  width: 100vw;
+}
+
+#controls {
+  padding: 10px;
+  background: #f4f4f4;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#legend {
+  font-size: 14px;
+}
+
+ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.progress-bar {
+  width: 100%;
+  background: #ddd;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+#gpxLoader {
+  background: #f4f4f4;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.progress-bar-inner {
+  height: 8px;
+  background: #4caf50;
+}
