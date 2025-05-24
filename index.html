@@ -21,51 +21,55 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet-gpx@1.4.0/gpx.min.js"></script>
   <script>
-    // ─── MAP ────────────────────────────────────────────────────────────────────
+    // ─── MAP & GPX SETUP ───────────────────────────────────────────────────────
     const map = L.map('map').setView([50.85, 4.35], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    // ─── ROUTE + CONFIG ─────────────────────────────────────────────────────────
     let routeCoords = [], totalRouteDistance = 0;
-    const config = {
-      trackerDeviceIds: [7198],
-      refreshInterval: 10000
-    };
-
-    const trackerMarkers = {};
 
     new L.GPX('mijnroute.gpx', { async: true })
-      .on('loaded', e => {
+      .on('loaded', function(e) {
         map.fitBounds(e.target.getBounds());
         const layers = e.target.getLayers();
-        const track = layers.find(l => typeof l.getLatLngs === 'function');
+        const track = layers.find(function(l) {
+          return typeof l.getLatLngs === 'function';
+        });
 
         if (!track) {
-          console.warn('Geen GPX track gevonden.');
+          console.warn('Geen GPX track gevonden met getLatLngs(). Beschikbare layers:', layers);
           return;
         }
 
         let coords = track.getLatLngs();
-        if (Array.isArray(coords[0])) coords = coords.flat();
+        if (Array.isArray(coords[0])) {
+          coords = coords.flat();
+        }
+
         routeCoords = coords;
-
-        totalRouteDistance = coords.reduce((sum, pt, i) =>
-          i ? sum + haversine(coords[i - 1], pt) : 0, 0
-        );
-
-        // Start pas nadat de route klaar is
-        updateTrackers();
-        setInterval(updateTrackers, config.refreshInterval);
+        totalRouteDistance = coords.reduce(function(sum, pt, i) {
+          return i ? sum + haversine(coords[i - 1], pt) : 0;
+        }, 0);
       })
-      .on('error', err => console.error('GPX load error:', err))
+      .on('error', function(err) {
+        console.error('GPX load error:', err);
+      })
       .addTo(map);
 
-    // ─── AFSTAND BEREKENEN ──────────────────────────────────────────────────────
+    // ─── CONFIGURATIE VOOR FUNCTION ───────────────────────────────────────────
+    const config = {
+      functionPath: '/.netlify/functions/get-positions',
+      trackerDeviceIds: [7198],
+      refreshInterval: 10000
+    };
+
+    // ─── HULPFUNCTIES ─────────────────────────────────────────────────────────
     function haversine(a, b) {
-      const R = 6371000, rad = d => d * Math.PI / 180;
-      const dLat = rad(b.lat - a.lat), dLon = rad(b.lng - a.lng);
+      const R = 6371000;
+      const rad = function(d) { return d * Math.PI / 180; };
+      const dLat = rad(b.lat - a.lat);
+      const dLon = rad(b.lng - a.lng);
       const A = Math.sin(dLat / 2) ** 2 +
                 Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
       return R * 2 * Math.atan2(Math.sqrt(A), Math.sqrt(1 - A));
@@ -74,51 +78,55 @@
     function calculateRemainingDistance(pos) {
       if (!routeCoords.length) return null;
       let idx = 0, min = Infinity;
-      routeCoords.forEach((pt, i) => {
+      routeCoords.forEach(function(pt, i) {
         const d = haversine(pos, pt);
-        if (d < min) { min = d; idx = i; }
+        if (d < min) {
+          min = d;
+          idx = i;
+        }
       });
-
       let rem = 0;
       for (let i = idx; i < routeCoords.length - 1; i++) {
         rem += haversine(routeCoords[i], routeCoords[i + 1]);
       }
-
       return {
         remainingKm: rem / 1000,
         progressPct: totalRouteDistance ? 100 - (rem / totalRouteDistance) * 100 : 0
       };
     }
 
-    // ─── TRACKERS UPDATEN ───────────────────────────────────────────────────────
+    // ─── TRACKERS UPDATEN ─────────────────────────────────────────────────────
+    const trackerMarkers = {};
+
     async function updateTrackers() {
       try {
-        const res = await fetch('/.netlify/functions/get-positions');
+        const res = await fetch(config.functionPath);
         if (!res.ok) throw new Error(`Function error ${res.status}`);
         const data = await res.json();
 
         const ul = document.getElementById('trackerList');
         ul.innerHTML = '';
 
-        config.trackerDeviceIds.forEach(id => {
-          const device = data.find(d => d.deviceId === id);
-          if (!device || !device.latitude || !device.longitude) return;
+        config.trackerDeviceIds.forEach(function(id) {
+          const device = data.find(function(d) {
+            return d.deviceId === id;
+          });
+          if (!device) return;
 
           const { latitude, longitude, fixTime } = device;
+          if (latitude == null || longitude == null) return;
+
           const latlng = { lat: latitude, lng: longitude };
 
-          // Voeg marker toe of verplaats
           if (!trackerMarkers[id]) {
             trackerMarkers[id] = L.marker(latlng).addTo(map);
           } else {
             trackerMarkers[id].setLatLng(latlng);
           }
 
-          // Bereken afstand en voortgang
           const dist = calculateRemainingDistance(latlng);
           const age = Math.floor((Date.now() - new Date(fixTime)) / 1000);
 
-          // Lijst tonen
           const li = document.createElement('li');
           li.innerHTML = `
             <strong>Tracker ${id}</strong> (${age}s geleden)<br>
@@ -137,6 +145,14 @@
         console.error('Tracker update mislukt:', err);
       }
     }
+
+    // ─── OPSTARTEN ────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        updateTrackers();
+        setInterval(updateTrackers, config.refreshInterval);
+      }, 500);
+    });
   </script>
 </body>
 </html>
