@@ -41,6 +41,9 @@
           console.warn('Geen GPX track gevonden met getLatLngs(). Beschikbare layers:', layers);
           return;
         }
+    // ▼▼ HIER TOEVOEGEN ▼▼
+    addDistanceMarkers(track);
+    // ▲▲ END ▼▼
 
         let coords = track.getLatLngs();
         if (Array.isArray(coords[0])) {
@@ -56,6 +59,43 @@
         console.error('GPX load error:', err);
       })
       .addTo(map);
+    
+// ─── MARKERS OP DE ROUTE (START, FINISH, ELKE 5 KM) ───────────────────────
+function addDistanceMarkers(trackLayer) {
+  let coords = trackLayer.getLatLngs();
+
+  // GPX tracks kunnen genest zijn → flatten
+  if (Array.isArray(coords[0])) coords = coords.flat();
+  if (!coords.length) return;
+
+  // Start marker
+  L.marker(coords[0], { title: "Start" })
+    .addTo(map)
+    .bindPopup("Start");
+
+  let distance = 0;
+  let nextMarker = 5000; // 5 km
+
+  for (let i = 1; i < coords.length; i++) {
+    const d = coords[i - 1].distanceTo(coords[i]);
+    distance += d;
+
+    if (distance >= nextMarker) {
+      const km = Math.round(distance / 1000);
+
+      L.marker(coords[i], { title: km + " km" })
+        .addTo(map)
+        .bindPopup(km + " km");
+
+      nextMarker += 5000;
+    }
+  }
+
+  // Finish marker
+  L.marker(coords[coords.length - 1], { title: "Finish" })
+    .addTo(map)
+    .bindPopup("Finish");
+}
 
     // ─── CONFIGURATIE VOOR FUNCTION ───────────────────────────────────────────
     const config = {
