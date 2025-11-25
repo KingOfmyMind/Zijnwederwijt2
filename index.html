@@ -20,128 +20,85 @@
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet-gpx@1.4.0/gpx.min.js"></script>
+
   <script>
-    // ─── MAP & GPX SETUP ───────────────────────────────────────────────────────
+    // ─── MAP SETUP ───────────────────────────────────────────────────────────
     const map = L.map('map').setView([50.85, 4.35], 13);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    let routeCoords = [], totalRouteDistance = 0;
+    let routeCoords = [];
+    let totalRouteDistance = 0;
 
+    // ─── MARKERS OP ROUTE (START, FINISH, ELKE 5 KM) ─────────────────────────
+    function addDistanceMarkers(trackLayer) {
+      let coords = trackLayer.getLatLngs().flat(Infinity);
+
+      if (!coords.length) {
+        console.warn("Geen coordinaten gevonden voor afstandsmarkers");
+        return;
+      }
+
+      // START
+      L.marker(coords[0], { title: "Start" })
+        .addTo(map)
+        .bindPopup("Start");
+
+      let distance = 0;
+      let nextMarker = 5000; // 5 km
+
+      for (let i = 1; i < coords.length; i++) {
+        const d = coords[i - 1].distanceTo(coords[i]);
+        distance += d;
+
+        if (distance >= nextMarker) {
+          const km = Math.round(distance / 1000);
+
+          L.marker(coords[i], { title: km + " km" })
+            .addTo(map)
+            .bindPopup(km + " km");
+
+          nextMarker += 5000;
+        }
+      }
+
+      // FINISH
+      L.marker(coords[coords.length - 1], { title: "Finish" })
+        .addTo(map)
+        .bindPopup("Finish");
+    }
+
+    // ─── GPX LADEN ───────────────────────────────────────────────────────────
     new L.GPX('mijnroute.gpx', { async: true })
       .on('loaded', function(e) {
         map.fitBounds(e.target.getBounds());
-       const track = e.target.getLayers().find(l =>
-  l instanceof L.Polyline
-);
 
-if (!track) {
-  console.warn("Geen polyline track gevonden in GPX");
-  return;
-}
-
+        // Vind de echte polyline van de route
+        const track = e.target.getLayers().find(l => l instanceof L.Polyline);
 
         if (!track) {
-          console.warn('Geen GPX track gevonden met getLatLngs(). Beschikbare layers:', layers);
+          console.warn("Geen polyline track gevonden in GPX");
           return;
         }
-    // ▼▼ HIER TOEVOEGEN ▼▼
-function addDistanceMarkers(trackLayer) {
-  let coords = trackLayer.getLatLngs();
 
-  // GPX kan nested segmenten hebben → alles plat maken
-  coords = coords.flat(Infinity);
+        // Afstandmarkers zetten
+        addDistanceMarkers(track);
 
-  if (!coords.length) {
-    console.warn("Geen coordinaten gevonden voor afstandsmarkers");
-    return;
-  }
+        // Opslaan voor tracker-voortgang
+        routeCoords = track.getLatLngs().flat(Infinity);
 
-  // START
-  L.marker(coords[0], { title: "Start" })
-    .addTo(map)
-    .bindPopup("Start");
-
-  let distance = 0;
-  let nextMarker = 5000; // 5 km
-
-  for (let i = 1; i < coords.length; i++) {
-    const d = coords[i - 1].distanceTo(coords[i]);
-    distance += d;
-
-    if (distance >= nextMarker) {
-      const km = Math.round(distance / 1000);
-
-      L.marker(coords[i], { title: km + " km" })
-        .addTo(map)
-        .bindPopup(km + " km");
-
-      nextMarker += 5000;
-    }
-  }
-
-  // FINISH
-  L.marker(coords[coords.length - 1], { title: "Finish" })
-    .addTo(map)
-    .bindPopup("Finish");
-}
-
-    // ▲▲ END ▼▼
-
-        let coords = track.getLatLngs();
-        if (Array.isArray(coords[0])) {
-          coords = coords.flat();
-        }
-
-        routeCoords = coords;
-        totalRouteDistance = coords.reduce(function(sum, pt, i) {
-          return i ? sum + haversine(coords[i - 1], pt) : 0;
+        totalRouteDistance = routeCoords.reduce((sum, pt, i) => {
+          return i ? sum + haversine(routeCoords[i - 1], pt) : 0;
         }, 0);
       })
-      .on('error', function(err) {
+      .on('error', err => {
         console.error('GPX load error:', err);
       })
       .addTo(map);
-    
-// ─── MARKERS OP DE ROUTE (START, FINISH, ELKE 5 KM) ───────────────────────
-function addDistanceMarkers(trackLayer) {
-  let coords = trackLayer.getLatLngs();
 
-  // GPX tracks kunnen genest zijn → flatten
-  if (Array.isArray(coords[0])) coords = coords.flat();
-  if (!coords.length) return;
-
-  // Start marker
-  L.marker(coords[0], { title: "Start" })
-    .addTo(map)
-    .bindPopup("Start");
-
-  let distance = 0;
-  let nextMarker = 5000; // 5 km
-
-  for (let i = 1; i < coords.length; i++) {
-    const d = coords[i - 1].distanceTo(coords[i]);
-    distance += d;
-
-    if (distance >= nextMarker) {
-      const km = Math.round(distance / 1000);
-
-      L.marker(coords[i], { title: km + " km" })
-        .addTo(map)
-        .bindPopup(km + " km");
-
-      nextMarker += 5000;
-    }
-  }
-
-  // Finish marker
-  L.marker(coords[coords.length - 1], { title: "Finish" })
-    .addTo(map)
-    .bindPopup("Finish");
-}
-
-    // ─── CONFIGURATIE VOOR FUNCTION ───────────────────────────────────────────
+    // ─── CONFIGURATIE ─────────────────────────────────────────────────────────
     const config = {
       functionPath: '/.netlify/functions/get-positions',
       trackerDeviceIds: [8388],
@@ -151,35 +108,41 @@ function addDistanceMarkers(trackLayer) {
     // ─── HULPFUNCTIES ─────────────────────────────────────────────────────────
     function haversine(a, b) {
       const R = 6371000;
-      const rad = function(d) { return d * Math.PI / 180; };
+      const rad = d => d * Math.PI / 180;
       const dLat = rad(b.lat - a.lat);
       const dLon = rad(b.lng - a.lng);
-      const A = Math.sin(dLat / 2) ** 2 +
-                Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+
+      const A = Math.sin(dLat/2)**2 +
+                Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) *
+                Math.sin(dLon/2)**2;
+
       return R * 2 * Math.atan2(Math.sqrt(A), Math.sqrt(1 - A));
     }
 
     function calculateRemainingDistance(pos) {
       if (!routeCoords.length) return null;
+
       let idx = 0, min = Infinity;
-      routeCoords.forEach(function(pt, i) {
+
+      routeCoords.forEach((pt, i) => {
         const d = haversine(pos, pt);
-        if (d < min) {
-          min = d;
-          idx = i;
-        }
+        if (d < min) { min = d; idx = i; }
       });
+
       let rem = 0;
       for (let i = idx; i < routeCoords.length - 1; i++) {
         rem += haversine(routeCoords[i], routeCoords[i + 1]);
       }
+
       return {
         remainingKm: rem / 1000,
-        progressPct: totalRouteDistance ? 100 - (rem / totalRouteDistance) * 100 : 0
+        progressPct: totalRouteDistance
+          ? 100 - (rem / totalRouteDistance) * 100
+          : 0
       };
     }
 
-    // ─── TRACKERS UPDATEN ─────────────────────────────────────────────────────
+    // ─── TRACKERS ─────────────────────────────────────────────────────────────
     const trackerMarkers = {};
 
     async function updateTrackers() {
@@ -191,10 +154,8 @@ function addDistanceMarkers(trackLayer) {
         const ul = document.getElementById('trackerList');
         ul.innerHTML = '';
 
-        config.trackerDeviceIds.forEach(function(id) {
-          const device = data.find(function(d) {
-            return d.deviceId === id;
-          });
+        config.trackerDeviceIds.forEach(id => {
+          const device = data.find(d => d.deviceId === id);
           if (!device) return;
 
           const { latitude, longitude, fixTime } = device;
@@ -230,13 +191,14 @@ function addDistanceMarkers(trackLayer) {
       }
     }
 
-    // ─── OPSTARTEN ────────────────────────────────────────────────────────────
-    window.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() {
+    // ─── INITIALISATIE ───────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
         updateTrackers();
         setInterval(updateTrackers, config.refreshInterval);
       }, 500);
     });
   </script>
+
 </body>
 </html>
