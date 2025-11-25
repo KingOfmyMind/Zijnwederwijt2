@@ -32,17 +32,61 @@
     new L.GPX('mijnroute.gpx', { async: true })
       .on('loaded', function(e) {
         map.fitBounds(e.target.getBounds());
-        const layers = e.target.getLayers();
-        const track = layers.find(function(l) {
-          return typeof l.getLatLngs === 'function';
-        });
+       const track = e.target.getLayers().find(l =>
+  l instanceof L.Polyline
+);
+
+if (!track) {
+  console.warn("Geen polyline track gevonden in GPX");
+  return;
+}
+
 
         if (!track) {
           console.warn('Geen GPX track gevonden met getLatLngs(). Beschikbare layers:', layers);
           return;
         }
     // ▼▼ HIER TOEVOEGEN ▼▼
-    addDistanceMarkers(track);
+function addDistanceMarkers(trackLayer) {
+  let coords = trackLayer.getLatLngs();
+
+  // GPX kan nested segmenten hebben → alles plat maken
+  coords = coords.flat(Infinity);
+
+  if (!coords.length) {
+    console.warn("Geen coordinaten gevonden voor afstandsmarkers");
+    return;
+  }
+
+  // START
+  L.marker(coords[0], { title: "Start" })
+    .addTo(map)
+    .bindPopup("Start");
+
+  let distance = 0;
+  let nextMarker = 5000; // 5 km
+
+  for (let i = 1; i < coords.length; i++) {
+    const d = coords[i - 1].distanceTo(coords[i]);
+    distance += d;
+
+    if (distance >= nextMarker) {
+      const km = Math.round(distance / 1000);
+
+      L.marker(coords[i], { title: km + " km" })
+        .addTo(map)
+        .bindPopup(km + " km");
+
+      nextMarker += 5000;
+    }
+  }
+
+  // FINISH
+  L.marker(coords[coords.length - 1], { title: "Finish" })
+    .addTo(map)
+    .bindPopup("Finish");
+}
+
     // ▲▲ END ▼▼
 
         let coords = track.getLatLngs();
