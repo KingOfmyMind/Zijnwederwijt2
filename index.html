@@ -22,7 +22,7 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet-gpx@1.4.0/gpx.min.js"></script>
 
   <script>
-    // ─── MAP SETUP ───────────────────────────────────────────────────────────
+    // ─── MAP ─────────────────────────────────────────────────────────────────
     const map = L.map('map').setView([50.85, 4.35], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -32,31 +32,26 @@
     let routeCoords = [];
     let totalRouteDistance = 0;
 
-    // ─── MARKERS OP ROUTE (START, FINISH, ELKE 5 KM) ─────────────────────────
-    function addDistanceMarkers(trackLayer) {
-      let coords = trackLayer.getLatLngs().flat(Infinity);
-
-      if (!coords.length) {
-        console.warn("Geen coordinaten gevonden voor afstandsmarkers");
-        return;
-      }
+    // ─── MARKERS (START, FINISH, 5 KM) ───────────────────────────────────────
+    function addDistanceMarkers(allCoords) {
+      if (!allCoords.length) return;
 
       // START
-      L.marker(coords[0], { title: "Start" })
+      L.marker(allCoords[0], { title: "Start" })
         .addTo(map)
         .bindPopup("Start");
 
       let distance = 0;
-      let nextMarker = 5000; // 5 km
+      let nextMarker = 5000;
 
-      for (let i = 1; i < coords.length; i++) {
-        const d = coords[i - 1].distanceTo(coords[i]);
+      for (let i = 1; i < allCoords.length; i++) {
+        const d = allCoords[i - 1].distanceTo(allCoords[i]);
         distance += d;
 
         if (distance >= nextMarker) {
           const km = Math.round(distance / 1000);
 
-          L.marker(coords[i], { title: km + " km" })
+          L.marker(allCoords[i], { title: km + " km" })
             .addTo(map)
             .bindPopup(km + " km");
 
@@ -65,7 +60,7 @@
       }
 
       // FINISH
-      L.marker(coords[coords.length - 1], { title: "Finish" })
+      L.marker(allCoords[allCoords.length - 1], { title: "Finish" })
         .addTo(map)
         .bindPopup("Finish");
     }
@@ -73,32 +68,38 @@
     // ─── GPX LADEN ───────────────────────────────────────────────────────────
     new L.GPX('mijnroute.gpx', { async: true })
       .on('loaded', function(e) {
+
         map.fitBounds(e.target.getBounds());
 
-        // Vind de echte polyline van de route
-        const track = e.target.getLayers().find(l => l instanceof L.Polyline);
+        // Haal ALLE polyline-segmenten uit de GPX
+        const polylines = e.target.getLayers().filter(l => l instanceof L.Polyline);
 
-        if (!track) {
-          console.warn("Geen polyline track gevonden in GPX");
+        if (!polylines.length) {
+          console.warn("Geen polylines gevonden");
           return;
         }
 
-        // Afstandmarkers zetten
-        addDistanceMarkers(track);
+        // Combineer alle segmenten tot één doorlopende track
+        let allCoords = [];
+        polylines.forEach(pl => {
+          allCoords = allCoords.concat(pl.getLatLngs().flat(Infinity));
+        });
 
-        // Opslaan voor tracker-voortgang
-        routeCoords = track.getLatLngs().flat(Infinity);
+        // Afstandmarkers op de gecombineerde track
+        addDistanceMarkers(allCoords);
 
-        totalRouteDistance = routeCoords.reduce((sum, pt, i) => {
-          return i ? sum + haversine(routeCoords[i - 1], pt) : 0;
+        // Opslaan voor tracker distance logic
+        routeCoords = allCoords;
+
+        totalRouteDistance = allCoords.reduce((sum, pt, i) => {
+          return i ? sum + haversine(allCoords[i - 1], pt) : 0;
         }, 0);
+
       })
-      .on('error', err => {
-        console.error('GPX load error:', err);
-      })
+      .on('error', err => console.error('GPX load error:', err))
       .addTo(map);
 
-    // ─── CONFIGURATIE ─────────────────────────────────────────────────────────
+    // ─── CONFIG ──────────────────────────────────────────────────────────────
     const config = {
       functionPath: '/.netlify/functions/get-positions',
       trackerDeviceIds: [8388],
@@ -109,6 +110,7 @@
     function haversine(a, b) {
       const R = 6371000;
       const rad = d => d * Math.PI / 180;
+
       const dLat = rad(b.lat - a.lat);
       const dLon = rad(b.lng - a.lng);
 
@@ -126,7 +128,7 @@
 
       routeCoords.forEach((pt, i) => {
         const d = haversine(pos, pt);
-        if (d < min) { min = d; idx = i; }
+        if (d < min) { idx = i; min = d; }
       });
 
       let rem = 0;
@@ -191,7 +193,7 @@
       }
     }
 
-    // ─── INITIALISATIE ───────────────────────────────────────────────────────
+    // ─── OPSTART ─────────────────────────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         updateTrackers();
